@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 // import DB_NAME from "./constants.js";
 import dbConnect from "./db/index.js";
 import dotenv from "dotenv";
+import app from './app.js'
 
 // import express from "express";
 
@@ -9,7 +10,7 @@ dotenv.config({
   path: "./env",
 });
 
-const port = process.env.PORT | 3001;
+const port = process.env.PORT || 3001;
 
 dbConnect()
   .then(() => {
