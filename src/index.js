@@ -9,7 +9,20 @@ dotenv.config({
   path: "./env",
 });
 
-dbConnect();
+const port = process.env.PORT | 3001;
+
+dbConnect()
+  .then(() => {
+    app.on('error', (err) => {
+      console.log("Error in app.on", err);
+    })
+    app.listen(port, () => {
+      console.log(`Server is listening on localhost port ${port}`);
+    })
+  })
+  .catch((err) => {
+    console.log(err);
+  });
 
 // const app = express();
 
