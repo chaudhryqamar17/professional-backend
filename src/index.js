@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 // import DB_NAME from "./constants.js";
 import dbConnect from "./db/index.js";
 import dotenv from "dotenv";
-import app from './app.js'
+import { app } from "./app.js";
 
 // import express from "express";
 
@@ -14,12 +14,12 @@ const port = process.env.PORT || 3001;
 
 dbConnect()
   .then(() => {
-    app.on('error', (err) => {
+    app.on("error", (err) => {
       console.log("Error in app.on", err);
-    })
+    });
     app.listen(port, () => {
       console.log(`Server is listening on localhost port ${port}`);
-    })
+    });
   })
   .catch((err) => {
     console.log(err);
