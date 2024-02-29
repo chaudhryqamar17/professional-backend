@@ -54,7 +54,7 @@ userSchema.pre("save", async function (req, res, next) {
     if (!this.isModified("password")) return next();
 
     const salt = await bcrypt.genSalt();
-    this.password = await bcrypt.hash(this.password, salt);
+    this.password = bcrypt.hash(this.password, salt);
   } catch (err) {
     console.error("Error hashing password:", err);
     // Handle error appropriately (e.g., throw an error to abort save)

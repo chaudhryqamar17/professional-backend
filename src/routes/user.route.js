@@ -9,6 +9,7 @@ import { verifyJWT } from "../middlewares/auth.js";
 
 const router = Router();
 
+// http://localhost:3000/api/v1/users/register
 router.route("/register").post(
   upload.fields([
     {
@@ -23,11 +24,11 @@ router.route("/register").post(
   registerUser
 );
 
+http://localhost:3000/api/v1/users/login
 router.route("/login").post(loginUser);
 
 // secured routes
 router.route("/logout").post(verifyJWT, logoutUser);
 
-// http://localhost:3000/api/v1/users/register
 
 export default router;

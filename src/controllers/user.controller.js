@@ -31,6 +31,7 @@ const registerUser = asyncHandler(async (req, res) => {
   // return res
 
   const { fullName, username, email, password } = req.body;
+  console.log(req.body);
 
   if (!fullName || !email || !password || !username) {
     throw new ApiError(400, "All fields are required!");
@@ -99,7 +100,9 @@ const loginUser = asyncHandler(async (req, res) => {
 
   const { username, email, password } = req.body;
 
-  if (!username || !email) {
+  // console.log(req.body);
+
+  if (!username && !email) {
     throw new ApiError(400, "Username or email is required.");
   }
 
@@ -113,9 +116,9 @@ const loginUser = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User does not exist!");
   }
 
-  const isPasswordCorrect = await user.isPasswordCorrect(password);
+  const isPasswordValid = await user.isPasswordCorrect(password);
 
-  if (!isPasswordCorrect) {
+  if (!isPasswordValid) {
     throw new ApiError(401, "Invalid user credentials!");
   }
 
@@ -140,7 +143,7 @@ const loginUser = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(
         200,
-        { user: loggedInuser, accessToken, refreshToken },
+        { user: loggedInuser, accessToken, refreshToken, },
         "User logged in successfully!"
       )
     );
@@ -149,6 +152,7 @@ const loginUser = asyncHandler(async (req, res) => {
 const logoutUser = asyncHandler(async (req, res) => {
   // clear the cookies
   // refresh token reset
+  
   // tried this: console.log(req.session);
 
   const user = req.user;
