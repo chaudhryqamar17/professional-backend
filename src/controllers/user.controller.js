@@ -3,6 +3,7 @@ import ApiError from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/fileUpload.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import jwt from "jsonwebtoken";
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -31,7 +32,7 @@ const registerUser = asyncHandler(async (req, res) => {
   // return res
 
   const { fullName, username, email, password } = req.body;
-  console.log(req.body);
+  // console.log(req.body);
 
   if (!fullName || !email || !password || !username) {
     throw new ApiError(400, "All fields are required!");
@@ -40,10 +41,11 @@ const registerUser = asyncHandler(async (req, res) => {
   const existedUser = await User.findOne({ $or: [{ username }, { email }] });
 
   if (existedUser) {
-    throw new ApiError(409, "This username is already registered.");
+    throw new ApiError(409, "This username or email is already registered.");
   }
 
-  const avatarLocalPath = req.files?.avatar[0]?.path;
+  // console.log(req.files.avatar);
+  const avatarLocalPath = req.files.avatar[0].path;
   // const coverImageLocalPath = req.files?.coverImage[0]?.path || "";
 
   let coverImageLocalPath;
@@ -68,7 +70,7 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Avatar is required.");
   }
 
-  // console.log(avatar); An object is being returned
+  // console.log(avatar); An object is being returned by cloudinary
 
   const user = await User.create({
     fullName,
@@ -82,6 +84,9 @@ const registerUser = asyncHandler(async (req, res) => {
   const createdUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
+
+  // console.log(user); had password
+  // console.log(createdUser); diselected it
 
   if (!createdUser) {
     throw new ApiError(500, "Something went wrong while registering the user!");
@@ -117,7 +122,9 @@ const loginUser = asyncHandler(async (req, res) => {
   }
 
   const isPasswordValid = await user.isPasswordCorrect(password);
-
+  
+  // console.log(isPasswordValid);
+  
   if (!isPasswordValid) {
     throw new ApiError(401, "Invalid user credentials!");
   }
@@ -143,7 +150,7 @@ const loginUser = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(
         200,
-        { user: loggedInuser, accessToken, refreshToken, },
+        { user: loggedInuser, accessToken, refreshToken },
         "User logged in successfully!"
       )
     );
@@ -152,7 +159,7 @@ const loginUser = asyncHandler(async (req, res) => {
 const logoutUser = asyncHandler(async (req, res) => {
   // clear the cookies
   // refresh token reset
-  
+
   // tried this: console.log(req.session);
 
   const user = req.user;
@@ -175,4 +182,73 @@ const logoutUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, "User logged out successfully!"));
 });
 
-export { registerUser, loginUser, logoutUser };
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  // console.log(req.cookies.refreshToken);
+  // console.log(req.headers);
+  // console.log(req.body.refreshToken);
+  // console.log(req.header("Connection"));
+
+  const incomingRefreshToken =
+    req.cookies?.refreshToken ||
+    req.body.refreshToken ||
+    req.header("Authorization").replace("Bearer ", "");
+
+  if (!incomingRefreshToken) {
+    throw new ApiError(401, "Did not get the refresh token");
+  }
+
+  const decodedToken = jwt.verify(incomingRefreshToken, REFRESH_TOKEN_SECRET);
+
+  const user = await User.findById(decodedToken._id);
+
+  if (!user) {
+    throw new ApiError(401, "Did not found the user");
+  }
+
+  const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
+    user._id
+  );
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(new ApiResponse(200, "Access token refreshed."));
+});
+
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+
+  if (!oldPassword || !newPassword) {
+    throw new ApiError(400, "All fields are required!");
+  }
+
+  const user = await User.findById(req.user._id);
+
+  const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+
+  if (!isPasswordCorrect) {
+    throw new ApiError(400, "Old password is wrong!");
+  }
+
+  user.password = newPassword;
+
+  await user.save({ validateBeforeSave: false });
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password changed successfully!"));
+});
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+  return res
+    .status(200)
+    .json(200, req.user, "Current user fetched successfully!");
+});
+
+export { registerUser, loginUser, logoutUser, refreshAccessToken };

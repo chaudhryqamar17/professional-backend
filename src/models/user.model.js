@@ -53,8 +53,9 @@ userSchema.pre("save", async function (req, res, next) {
   try {
     if (!this.isModified("password")) return next();
 
-    const salt = await bcrypt.genSalt();
-    this.password = bcrypt.hash(this.password, salt);
+    this.password = await bcrypt.hash(this.password, 10);
+    next();
+    // console.log(this.password); hashed password check
   } catch (err) {
     console.error("Error hashing password:", err);
     // Handle error appropriately (e.g., throw an error to abort save)
@@ -62,6 +63,8 @@ userSchema.pre("save", async function (req, res, next) {
 });
 
 userSchema.methods.isPasswordCorrect = async function (password) {
+  // console.log(this.password);
+  // console.log(password);
   return await bcrypt.compare(password, this.password);
 };
 
@@ -69,7 +72,7 @@ userSchema.methods.generateAccessToken = function () {
   return jwt.sign(
     {
       _id: this._id,
-      email: this.email, 
+      email: this.email,
       username: this.username,
       fullName: this.fullName,
     },
