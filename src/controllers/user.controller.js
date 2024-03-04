@@ -190,19 +190,24 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
   const incomingRefreshToken =
     req.cookies?.refreshToken ||
-    req.body.refreshToken ||
-    req.header("Authorization").replace("Bearer ", "");
+    req.body.refreshToken;
+
+    console.log(incomingRefreshToken);
 
   if (!incomingRefreshToken) {
     throw new ApiError(401, "Did not get the refresh token");
   }
 
-  const decodedToken = jwt.verify(incomingRefreshToken, REFRESH_TOKEN_SECRET);
+  const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET);
 
   const user = await User.findById(decodedToken._id);
 
   if (!user) {
     throw new ApiError(401, "Did not found the user");
+  }
+
+  if (incomingRefreshToken !== user.refreshToken) {
+    throw new ApiError(401, "Refresh tokens do not match.")
   }
 
   const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
@@ -228,6 +233,8 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All fields are required!");
   }
 
+  console.log(req.user);
+
   const user = await User.findById(req.user._id);
 
   const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
@@ -245,10 +252,14 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Password changed successfully!"));
 });
 
+const updateUserDetails = asyncHandler(async (req, res) => {
+  
+})
+
 const getCurrentUser = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(200, req.user, "Current user fetched successfully!");
 });
 
-export { registerUser, loginUser, logoutUser, refreshAccessToken };
+export { registerUser, loginUser, logoutUser, refreshAccessToken, changeCurrentPassword };
