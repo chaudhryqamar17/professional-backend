@@ -330,7 +330,44 @@ const updateAvatar = asyncHandler(async (req, res) => {
 
   res
     .status(200)
-    .json(new ApiResponse(200, user, "Avatar image updatedsuccessfully."));
+    .json(new ApiResponse(200, user, "Avatar image updated successfully."));
+});
+
+const updateCover = asyncHandler(async (req, res) => {
+  const newCoverLocalPath = req.file.path;
+
+  if (!newCoverLocalPath) {
+    throw new ApiError(400, "Cover image is required.");
+  }
+
+  // console.log(req.user._id);
+
+  const user = await User.findById(req.user._id).select("-password");
+
+  if (!user) {
+    throw new ApiError(404, "User does not exist!");
+  }
+
+  const oldCoverPublicId = extractPubicId(user.coverImage);
+
+  console.log(oldCoverPublicId);
+
+  if (oldCoverPublicId) {
+    await removeFromCloudinary(oldCoverPublicId);
+  }
+
+  const coverImage = await uploadOnCloudinary(newCoverLocalPath);
+
+  if (!coverImage) {
+    throw new ApiError(400, "Cover image is required.");
+  }
+
+  user.coverImage = coverImage.url;
+  await user.save({ validateBeforeSave: false });
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, user, "Cover image updated successfully."));
 });
 
 export {
@@ -342,4 +379,5 @@ export {
   getCurrentUser,
   updateUserDetails,
   updateAvatar,
+  updateCover
 };
