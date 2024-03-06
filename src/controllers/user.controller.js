@@ -1,9 +1,17 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import ApiError from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/fileUpload.js";
+import {
+  uploadOnCloudinary,
+  removeFromCloudinary,
+} from "../utils/fileUpload.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+
+const extractPubicId = (cloudinaryAssetUrl) => {
+  const parts = cloudinaryAssetUrl.split("/");
+  return parts[7].split(".")[0];
+};
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -122,9 +130,9 @@ const loginUser = asyncHandler(async (req, res) => {
   }
 
   const isPasswordValid = await user.isPasswordCorrect(password);
-  
+
   // console.log(isPasswordValid);
-  
+
   if (!isPasswordValid) {
     throw new ApiError(401, "Invalid user credentials!");
   }
@@ -189,16 +197,18 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   // console.log(req.header("Connection"));
 
   const incomingRefreshToken =
-    req.cookies?.refreshToken ||
-    req.body.refreshToken;
+    req.cookies?.refreshToken || req.body.refreshToken;
 
-    console.log(incomingRefreshToken);
+  console.log(incomingRefreshToken);
 
   if (!incomingRefreshToken) {
     throw new ApiError(401, "Did not get the refresh token");
   }
 
-  const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET);
+  const decodedToken = jwt.verify(
+    incomingRefreshToken,
+    process.env.REFRESH_TOKEN_SECRET
+  );
 
   const user = await User.findById(decodedToken._id);
 
@@ -207,7 +217,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   }
 
   if (incomingRefreshToken !== user.refreshToken) {
-    throw new ApiError(401, "Refresh tokens do not match.")
+    throw new ApiError(401, "Refresh tokens do not match.");
   }
 
   const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
@@ -233,7 +243,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All fields are required!");
   }
 
-  console.log(req.user);
+  console.log(req.user._id);
 
   const user = await User.findById(req.user._id);
 
@@ -253,13 +263,83 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 });
 
 const updateUserDetails = asyncHandler(async (req, res) => {
-  
-})
+  const { username, fullName } = req.body;
+
+  if (!username && !fullName) {
+    throw new ApiError(
+      400,
+      "Any one field is required if you are going to update it."
+    );
+  }
+  console.log(req.user);
+  const user = await User.findById(req.user._id);
+
+  if (username) {
+    user.username = username.toLowerCase();
+  }
+
+  if (fullName) {
+    user.fullName = fullName;
+  }
+
+  await user.save({ validateBeforeSave: false });
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, user, "User details updated successfully!"));
+});
 
 const getCurrentUser = asyncHandler(async (req, res) => {
+  console.log(req.user);
   return res
     .status(200)
     .json(200, req.user, "Current user fetched successfully!");
 });
 
-export { registerUser, loginUser, logoutUser, refreshAccessToken, changeCurrentPassword };
+const updateAvatar = asyncHandler(async (req, res) => {
+  const newAvatarLocalPath = req.file.path;
+
+  if (!newAvatarLocalPath) {
+    throw new ApiError(400, "Avatar is required.");
+  }
+
+  // console.log(req.user._id);
+
+  const user = await User.findById(req.user._id).select("-password");
+
+  if (!user) {
+    throw new ApiError(404, "User does not exist!");
+  }
+
+  const oldAvatarPublicId = extractPubicId(user.avatar);
+
+  console.log(oldAvatarPublicId);
+
+  if (oldAvatarPublicId) {
+    await removeFromCloudinary(oldAvatarPublicId);
+  }
+
+  const avatar = await uploadOnCloudinary(newAvatarLocalPath);
+
+  if (!avatar) {
+    throw new ApiError(400, "Avatar is required.");
+  }
+
+  user.avatar = avatar.url;
+  await user.save({ validateBeforeSave: false });
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, user, "Avatar image updatedsuccessfully."));
+});
+
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  refreshAccessToken,
+  changeCurrentPassword,
+  getCurrentUser,
+  updateUserDetails,
+  updateAvatar,
+};
