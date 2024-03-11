@@ -52,7 +52,7 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(409, "This username or email is already registered.");
   }
 
-  // console.log(req.files.avatar);
+  // console.log(req.files.path);
   const avatarLocalPath = req.files.avatar[0].path;
   // const coverImageLocalPath = req.files?.coverImage[0]?.path || "";
 
@@ -293,7 +293,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
   console.log(req.user);
   return res
     .status(200)
-    .json(200, req.user, "Current user fetched successfully!");
+    .json(new ApiResponse(200, req.user, "Current user fetched successfully!"));
 });
 
 const updateAvatar = asyncHandler(async (req, res) => {
@@ -370,6 +370,132 @@ const updateCover = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, user, "Cover image updated successfully."));
 });
 
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  const { username } = req.params;
+
+  if (!username?.trim()) {
+    throw new ApiError(400, "Username is required.");
+  }
+
+  const user = await User.findOne({ username });
+
+  if (!user) {
+    throw new ApiError(404, "User does not exist!");
+  }
+
+  const channel = User.aggregate([
+    {
+      $match: {
+        username: username.toLowerCase(),
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
+        as: "subscribedTo",
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel",
+        as: "subscribers",
+      },
+    },
+    {
+      $addFields: {
+        subscribers: {
+          $size: "$subscribers",
+        },
+        subscribedTo: {
+          $size: "$subscribedTo",
+        },
+        isSubscribed: {
+          $cond: {
+            if: { $in: ["req.user._id", "$subscribers.subscriber"] },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        username: 1,
+        fullName: 1,
+        email: 1,
+        avatar: 1,
+        coverImage: 1,
+        subscribers: 1,
+        subscribedTo: 1,
+        isSubscribed: 1,
+      },
+    },
+  ]);
+
+  if (!channel?.length) {
+    throw new ApiError(404, "User does not exist!");
+  }
+
+  res
+    .status(200)
+    .json(
+      new ApiResponse(200, channel[0], "User channel fethched successfully")
+    );
+});
+
+const getUserWatchHistory = asyncHandler(async (req, res) => {
+  const user = await User.aggregate([
+    {
+      $match: {
+        _id: new mongoose.Types.ObjectId(req.user._id),
+      },
+    },
+    {
+      $lookup: {
+        from: "videos",
+        localField: "watchHistory",
+        foreignField: "_id",
+        as: "watchHistory",
+        pipeline: [
+          {
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "owner",
+              pipeline: [
+                {
+                  $project: {
+                    _id: 0,
+                    username: 1,
+                    fullName: 1,
+                    avatar: 1,
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ]);
+
+  if (!user?.length) {
+    throw new ApiError(404, "User does not exist!");
+  }
+
+  res
+    .status(200)
+    .json(
+      new ApiResponse(200, user[0].watchHistory, "User watch history fetched!")
+    );
+});
+
 export {
   registerUser,
   loginUser,
@@ -379,5 +505,7 @@ export {
   getCurrentUser,
   updateUserDetails,
   updateAvatar,
-  updateCover
+  updateCover,
+  getUserChannelProfile,
+  getUserWatchHistory,
 };
